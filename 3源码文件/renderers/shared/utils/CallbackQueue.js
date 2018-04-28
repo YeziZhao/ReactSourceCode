@@ -1,32 +1,13 @@
-/**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule CallbackQueue
- * @flow
- */
+// CallbackQueue模块用于添加，执行，重置回调函数队列
+// react中，使用var Export=PooledClass.addPoolingTo(CallbackQueue)工厂化CallbackQueue构造函数，
+// export.getPooled方法：实现功能是管理CallbackQueue实例的创建
+// Export.release方法: 实例数据（回调函数及其执行上下文）的销毁.销毁数据的实例存入Export.instancePool实例池中，可通过Export.getPooled方法取
 
 'use strict';
-
+// 引入事务
 var PooledClass = require('PooledClass');
-
 var invariant = require('invariant');
 
-/**
- * A specialized pseudo-event module to help keep track of components waiting to
- * be notified when their DOM representations are available for use.
- *
- * This implements `PooledClass`, so you should never need to instantiate this.
- * Instead, use `CallbackQueue.getPooled()`.
- *
- * @class ReactMountReady
- * @implements PooledClass
- * @internal
- */
 class CallbackQueue<T> {
   _callbacks: ?Array<() => void>;
   _contexts: ?Array<T>;
