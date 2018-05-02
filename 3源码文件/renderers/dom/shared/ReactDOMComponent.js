@@ -526,7 +526,8 @@ ReactDOMComponent.Mixin = {
     this._hostContainerInfo = hostContainerInfo;
 
     var props = this._currentElement.props;
-
+    // _tag是一个复杂标签，例如video, textarea, form等，需要进一步封装，绑定更多的监听器。例如audio标签增加volumechange事件，select,texterea等标签需要封装一些浏览器原生行为。
+    // 有很多封装器做这个事情，例如ReactDOMSelect 和 ReactDOMTextarea。位于源码 (src\renderers\dom\client\wrappers\folder) 
     switch (this._tag) {
       case 'audio':
       case 'form':
@@ -561,7 +562,7 @@ ReactDOMComponent.Mixin = {
         transaction.getReactMountReady().enqueue(trapBubbledEventsLocal, this);
         break;
     }
-
+    // 为确保内部props被正确设置，不然会抛出异常
     assertValidProps(this, props);
 
     // We create tags in the namespace of their parent container, except HTML
@@ -603,7 +604,7 @@ ReactDOMComponent.Mixin = {
       this._ancestorInfo =
         validateDOMNesting.updatedAncestorInfo(parentInfo, this._tag, this);
     }
-
+    // 创建真实的HTML元素，例如实例出真实的HTML div。在这一步之前，我们都看到的是虚拟的表现形式表达，这里可以直接看到它了。
     var mountImage;
     if (transaction.useCreateElement) {
       var ownerDocument = hostContainerInfo._ownerDocument;
@@ -698,8 +699,6 @@ ReactDOMComponent.Mixin = {
         );
         break;
     }
-    debugger;
-    console.log('mountImage', mountImage);
     return mountImage;
   },
 

@@ -261,7 +261,7 @@ var ReactMultiChild = {
         nestedChildren, transaction, context
       );
       this._renderedChildren = children;
-
+      // 一个一个挂在子元素，并放入到mountImages中并返回，这个就是最终返回的DOMLazyTree上的子node数组列表
       var mountImages = [];
       var index = 0;
       for (var name in children) {
@@ -271,6 +271,7 @@ var ReactMultiChild = {
           if (__DEV__) {
             selfDebugID = getDebugID(this);
           }
+           // 调用子元素上的挂在信息返回node节点
           var mountImage = ReactReconciler.mountComponent(
             child,
             transaction,
@@ -282,10 +283,6 @@ var ReactMultiChild = {
           child._mountIndex = index++;
           mountImages.push(mountImage);
         }
-      }
-
-      if (__DEV__) {
-        setChildrenForInstrumentation.call(this, children);
       }
 
       return mountImages;

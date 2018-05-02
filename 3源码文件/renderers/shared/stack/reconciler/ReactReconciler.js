@@ -54,7 +54,6 @@ var ReactReconciler = {
         );
       }
     }
-    debugger;
     var markup = internalInstance.mountComponent(
       transaction,
       hostParent,
