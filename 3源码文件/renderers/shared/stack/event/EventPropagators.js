@@ -181,9 +181,17 @@ function accumulateDirectDispatches(events) {
 // _dispatchListeners属性以数组形式记录绑定回调函数  
 // _dispatchInstances属性以数组形式记录被绑定事件的相应react组件实例  
 var EventPropagators = {
+  // accumulateDirectDispatchesSingle(event)  
+  // 合成事件对象添加触发事件实例及其直系父组件的绑定回调函数，含捕获和冒泡事件  
   accumulateTwoPhaseDispatches: accumulateTwoPhaseDispatches,
+   // accumulateTwoPhaseDispatches(events)  
+  // 合成事件对象添加触发事件实例的直系父组件的绑定回调函数，排除触发事件实例，含捕获和冒泡事件  
   accumulateTwoPhaseDispatchesSkipTarget: accumulateTwoPhaseDispatchesSkipTarget,
+   // accumulateDirectDispatches(events)  
+  // 针对一组合成事件对象，每个对象均添加触发事件实例的绑定回调函数，含捕获和冒泡事件  
   accumulateDirectDispatches: accumulateDirectDispatches,
+  // accumulateEnterLeaveDispatches(leave,enter,from,to)   
+  // leave鼠标移开、enter鼠标移入合成事件对象添加相应父组件实例的绑定回调函数  
   accumulateEnterLeaveDispatches: accumulateEnterLeaveDispatches,
 };
 
