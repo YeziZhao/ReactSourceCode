@@ -202,7 +202,7 @@ var ReactMultiChild = {
 
     _reconcilerUpdateChildren: function(
       prevChildren,
-      nextNestedChildrenElements,
+      nextNestedChildrenElements, // 不是null就是 nextChildren（ReactElement类型）
       mountImages,
       removedNodes,
       transaction,
@@ -215,10 +215,12 @@ var ReactMultiChild = {
         if (this._currentElement) {
           try {
             ReactCurrentOwner.current = this._currentElement._owner;
+            // 访问我们的子树指针nextNestedChildrenElements，得到与prevChildren同层的nextChildren
             nextChildren = flattenChildren(nextNestedChildrenElements, selfDebugID);
           } finally {
             ReactCurrentOwner.current = null;
           }
+          // 将prevChildren、nextChildren封装成ReactDOMComponent类型。
           ReactChildReconciler.updateChildren(
             prevChildren,
             nextChildren,
@@ -346,9 +348,15 @@ var ReactMultiChild = {
      * @protected
      */
     _updateChildren: function(nextNestedChildrenElements, transaction, context) {
+      // -prevChildren 和nextChildren都是ReactElement，也就是虚拟DOM.cont他们的$$typeof.Symbol(react.element) 可以看出来的
+      // removedNodes和mountImages：这些变量会随着调用栈一层层往下作为参数传下去并被修改和包装
+      // 之前的children
       var prevChildren = this._renderedChildren;
+      // 本次需要移除的node节点集合
       var removedNodes = {};
+      // 本次需要挂载到DOM的DOMLazyTree（真实DOM的映射）
       var mountImages = [];
+      // 本次需要挂载的children
       var nextChildren = this._reconcilerUpdateChildren(
         prevChildren,
         nextNestedChildrenElements,
@@ -364,25 +372,34 @@ var ReactMultiChild = {
       var name;
       // `nextIndex` will increment for each child in `nextChildren`, but
       // `lastIndex` will be the last index visited in `prevChildren`.
+      // `nextIndex`会为`nextChildren`中的每个child自增
       var nextIndex = 0;
+      // `lastIndex`将是'prevChildren`中最后一个访问的索引
       var lastIndex = 0;
       // `nextMountIndex` will increment for each newly mounted child.
       var nextMountIndex = 0;
       var lastPlacedNode = null;
+      // 遍历nextChildren,通过hasOwnProperty过滤原型上的属性和方法
       for (name in nextChildren) {
         if (!nextChildren.hasOwnProperty(name)) {
           continue;
         }
         var prevChild = prevChildren && prevChildren[name];
         var nextChild = nextChildren[name];
+        // 将同层节点进行比较
         if (prevChild === nextChild) {
+          // 节点相同：则enqueue一个moveChild方法返回的type为MOVE_EXISTING的对象到updates里
+          // 即把更新放入一个队列，moveChild也就是移动已有节点，但是是否真的移动会根据整体diff算法的结果来决定(本例当然是没移动了)，然后修改若干index量
           updates = enqueue(
             updates,
             this.moveChild(prevChild, lastPlacedNode, nextIndex, lastIndex)
           );
+          // 修改lastIndex
           lastIndex = Math.max(prevChild._mountIndex, lastIndex);
+          // 将旧对象的_mountIndex更新为新集合中的位置
           prevChild._mountIndex = nextIndex;
         } else {
+          // 就会计算一堆index(这里其实是算法的核心，此处先不细说)，然后再次enqueue一个update，事实上是一个type属性为INSERT_MARKUP的对象。
           if (prevChild) {
             // Update `lastIndex` before `_mountIndex` gets unset by unmounting.
             lastIndex = Math.max(prevChild._mountIndex, lastIndex);
@@ -403,17 +420,21 @@ var ReactMultiChild = {
           nextMountIndex++;
         }
         nextIndex++;
+        // 通过ReactReconciler.getHostNode根据nextChild得到真实DOM
         lastPlacedNode = ReactReconciler.getHostNode(nextChild);
       }
       // Remove children that are no longer present.
+      // 把需要删除的节点用enqueue的方法继续入队unmount操作。
       for (name in removedNodes) {
         if (removedNodes.hasOwnProperty(name)) {
+          // 这里this._unmountChild返回的是REMOVE_NODE对象
           updates = enqueue(
             updates,
             this._unmountChild(prevChildren[name], removedNodes[name])
           );
         }
       }
+      // 整个更新的diff流程就走完了，而updates保存了全部的更新队列，最终由processQueue来挨个执行更新。
       if (updates) {
         processQueue(this, updates);
       }
@@ -440,9 +461,9 @@ var ReactMultiChild = {
     /**
      * Moves a child component to the supplied index.
      *
-     * @param {ReactComponent} child Component to move.
-     * @param {number} toIndex Destination index of the element.
-     * @param {number} lastIndex Last index visited of the siblings of `child`.
+     * @param {ReactComponent} child Component to move. 就集合中存在的本次节点对象
+     * @param {number} toIndex Destination index of the element.本次需要插入节点的位置
+     * @param {number} lastIndex Last index visited of the siblings of `child`.节点在旧集合中的位置
      * @protected
      */
     moveChild: function(child, afterNode, toIndex, lastIndex) {

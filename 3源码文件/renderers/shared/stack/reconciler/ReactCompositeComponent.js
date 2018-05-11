@@ -158,12 +158,13 @@ var ReactCompositeComponent = {
     this._updateBatchNumber = null;
     this._pendingElement = null; // ReactDOM.render方法渲染时包裹元素由react组件渲染，_pendingElement存储待渲染元素
     this._pendingStateQueue = null; // 组件调用setState、replaceState方法，通过ReactUpdateQueue将更迭后的state推入state数据
-    this._pendingReplaceState = false; // 判断组件是否通过嗲噢哟金replaceState方法向_pendingStateQueue推入数据
+    this._pendingReplaceState = false; // 判断组件是否通过replaceState方法向_pendingStateQueue推入数据
     this._pendingForceUpdate = false; // 组件调用forceUpdate赋值为真  
 
     this._renderedNodeType = null; // 节点类型，区分ReactCompositeComponent,ReactDOMElement, ReactDOMTextElement
     this._renderedComponent = null; // render方法内子组件实例
     this._context = null; // 赋值给组件的context属性
+    // 当组件挂载时，会分配一个递增编号，表示执行ReactUpdates时更新的顺序
     this._mountOrder = 0; // 挂在的第几个组件,来自于nextMountID自增的值
     this._topLevelWrapper = null; // 顶层包裹元素
 
@@ -185,13 +186,14 @@ var ReactCompositeComponent = {
             // 其次通过getUpdateQueue()方法，向组件实例注入update参数，默认是ReactUpdateQueue模块。
             // 意义是未组件的setState,replaceState, forceUpdate方法完成功能提供必要的函数
   // param- context：或者为空对象，或者由上层组件提供，后者混合this.context和this.getChildContext()形成
-  // 功能： 完成组件实例化，执行实例的render方法，通过ReactDomComponent绘制DomLazyTree，挂载componentDidMount函数 
+  // 功能： 完成组件实例化，执行实例的render方法，通过ReactDomComponent绘制DomLazyTree，挂载componentDidMount函数。(初始化组件，渲染标记，注册事件监听)
   mountComponent: function(
     transaction,
     hostParent,
     hostContainerInfo,
     context
   ) {
+    // 当前元素对应的上下文
     this._context = context;
     this._mountOrder = nextMountID++;
     this._hostParent = hostParent;
@@ -208,7 +210,7 @@ var ReactCompositeComponent = {
 
     // 检验是否时纯组件或组件，是返回true，否则返回false
     var doConstruct = shouldConstruct(Component);
-    // 创建纯组件或者组件实例，或者获取无状态组件的返回值
+    // 初始化公共类：创建纯组件或者组件实例，或者获取无状态组件的返回值。
     var inst = this._constructComponent(
       doConstruct,
       publicProps,
@@ -218,6 +220,7 @@ var ReactCompositeComponent = {
     // 待挂载的ReactComponent元素
     var renderedElement;
 
+    // 用于判断组件是否为stateless,无状态组件没有状态更新队列，它只专注于渲染
     // 如果component是纯函数无状态组件
     if (!doConstruct && (inst == null || inst.render == null)) {
       // 无状态组件返回值即是待挂载的ReactElement 
@@ -274,7 +277,7 @@ var ReactCompositeComponent = {
 
     // These should be set up in the constructor, but as a convenience for
     // simpler class abstractions, we set them up after the fact.
-    // 这些应该在构造函数中设置，但是这里再次设置了一次，保证了数据的准确性
+    // 这些应该在构造函数中设置，但是这里再次设置了一次，保证了数据的准确性。也是为了便于进行简单的类抽象。
     inst.props = publicProps;
     inst.context = publicContext;
     inst.refs = emptyObject;
@@ -282,7 +285,7 @@ var ReactCompositeComponent = {
     // 将Component实例赋值给了_instance变量
     this._instance = inst;
 
-    // ReactInstanceMap中添加组件实例 。ReactInstanceMap存放这所有的挂载元素
+    // ReactInstanceMap中添加组件实例 。ReactInstanceMap存放这所有的挂载元素。将实例存储为一个引用
     ReactInstanceMap.set(inst, this);
 
     if (__DEV__) {
@@ -343,7 +346,7 @@ var ReactCompositeComponent = {
         (this.getName() || 'A component')
       );
     }
-    // 初始化state,并提示state之恩那个设置对象形式
+    // 初始化state,并提示state那个设置对象形式
     var initialState = inst.state;
     if (initialState === undefined) {
       inst.state = initialState = null;
@@ -359,6 +362,7 @@ var ReactCompositeComponent = {
     this._pendingForceUpdate = false;
     // 执行实力inst的render方法，嵌套调用mountComponent.将返回值ReactNode元素转为DomLazyTree输出
     var markup;
+    // 如果挂载时出错
     if (inst.unstable_handleError) {
       markup = this.performInitialMountWithErrorHandling(
         renderedElement,
@@ -368,6 +372,7 @@ var ReactCompositeComponent = {
         context
       );
     } else {
+      // 执行初始挂载
       markup = this.performInitialMount(renderedElement, hostParent, hostContainerInfo, transaction, context);
     }
     // 向后置钩子transaction.getReactMountReady()中添加实例的生命周期方法componentDidMount
@@ -463,6 +468,7 @@ var ReactCompositeComponent = {
   ) {
     var markup;
     var checkpoint = transaction.checkpoint();
+    // 捕捉出错，如果没有则执行初始挂载
     try {
       markup = this.performInitialMount(renderedElement, hostParent, hostContainerInfo, transaction, context);
     } catch (e) {
@@ -474,7 +480,7 @@ var ReactCompositeComponent = {
         this._instance.state = this._processPendingState(this._instance.props, this._instance.context);
       }
       checkpoint = transaction.checkpoint();
-
+      // 如果捕捉到错误，执行unmountComponent后，再初始化挂载
       this._renderedComponent.unmountComponent(true);
       transaction.rollback(checkpoint);
 
@@ -507,12 +513,14 @@ var ReactCompositeComponent = {
       } else {
         inst.componentWillMount();
       }
+      console.log('componentWillMount, componentWillMount');
       // When mounting, calls to `setState` by `componentWillMount` will set
       // `this._pendingStateQueue` without triggering a re-render.
       if (this._pendingStateQueue) {
         // _processPendingState方法获取组件setState、replaceState方法执行后的最终state  
         inst.state = this._processPendingState(inst.props, inst.context);
       }
+      console.log('inst.state', inst.state);
     }
 
     // If not a stateless component, we now render
@@ -572,7 +580,7 @@ var ReactCompositeComponent = {
     }
 
     var inst = this._instance;
-
+    // componentWillUnmount存在，则调用
     if (inst.componentWillUnmount && !inst._calledComponentWillUnmount) {
       inst._calledComponentWillUnmount = true;
 
@@ -591,7 +599,7 @@ var ReactCompositeComponent = {
         }
       }
     }
-
+    // 如果组件已经渲染，则对组件进行 unmountComponent 操作
     if (this._renderedComponent) {
       ReactReconciler.unmountComponent(this._renderedComponent, safely);
       this._renderedNodeType = null;
@@ -602,6 +610,7 @@ var ReactCompositeComponent = {
     // Reset pending fields
     // Even if this component is scheduled for another update in ReactUpdates,
     // it would still be ignored because these fields are reset.
+    // 重置相关参数、更新队列以及更新状态
     this._pendingStateQueue = null;
     this._pendingReplaceState = false;
     this._pendingForceUpdate = false;
@@ -617,6 +626,7 @@ var ReactCompositeComponent = {
     // Delete the reference from the instance to this internal representation
     // which allow the internals to be properly cleaned up even if the user
     // leaks a reference to the public instance.
+    // 清除公共类
     ReactInstanceMap.remove(inst);
 
     // Some existing components rely on inst.props even after they've been
@@ -748,7 +758,10 @@ var ReactCompositeComponent = {
       );
     }
   },
-
+  // 接收新的组件带渲染元素nextElement,以替换旧组件元素this._currentElement
+  // 通过performUpdateIfNecessary方法调用，nextElement由this._pendingElement提供
+  // 该方法触发执行的实际情形是ReactDom.render(ReactNode, pNode)挂在的组件元素，其父节点pNode由React方式绘制
+  // 通过_updateRenderdComponent方法调用，nextElement为待变更的子组件元素
   receiveComponent: function(nextElement, transaction, nextContext) {
     var prevElement = this._currentElement;
     var prevContext = this._context;
@@ -771,7 +784,11 @@ var ReactCompositeComponent = {
    * @param {ReactReconcileTransaction} transaction
    * @internal
    */
+  // 由ReactDom.render(ReactNode,pNode)方法插入文档时，pNode由react方式绘制  
+  // 调用ReactReconciler.receiveComponent间接执行updateComponent方法重绘组件  
+  // 组件的setState、replaceState、forceUpdate方法触发重绘，直接调用updateComponent方法重绘组件
   performUpdateIfNecessary: function(transaction) {
+    // ReactDom.render方法渲染时包裹元素由react组件渲染，将待渲染的元素推入_penddingElement中
     if (this._pendingElement != null) {
       ReactReconciler.receiveComponent(
         this,
@@ -779,6 +796,8 @@ var ReactCompositeComponent = {
         transaction,
         this._context
       );
+
+      // 通过调用组件的setState、replaceState、forceUpdate方法重绘组件
     } else if (this._pendingStateQueue !== null || this._pendingForceUpdate) {
       this.updateComponent(
         transaction,
@@ -807,6 +826,10 @@ var ReactCompositeComponent = {
    * @internal
    * @overridable
    */
+  // 判断props变更情况，执行shouldComponentUpdate方法，重绘组件或者更改组件的属性  
+  // 参数transaction，组件重绘时用于向子组件提供updater参数，setState等方法可用；以及实现componentWillMount挂载功能  
+  // 参数prevParentElement变更前的组件元素ReactNode，nextParentElement变更后的组件元素，作为render方法渲染节点的父元素  
+  // 参数prevUnmaskedContext更迭前的context，nextUnmaskedContext更迭后的context  
   updateComponent: function(
     transaction,
     prevParentElement,
@@ -815,6 +838,7 @@ var ReactCompositeComponent = {
     nextUnmaskedContext
   ) {
     var inst = this._instance;
+    // 组件实例尚未生成，报错
     invariant(
       inst != null,
       'Attempted to update component `%s` that has already been unmounted ' +
@@ -826,6 +850,7 @@ var ReactCompositeComponent = {
     var nextContext;
 
     // Determine if the context has changed or not
+    // 上下文是否改变了
     if (this._context === nextUnmaskedContext) {
       nextContext = inst.context;
     } else {
@@ -837,6 +862,7 @@ var ReactCompositeComponent = {
     var nextProps = nextParentElement.props;
 
     // Not a simple state update but a props update
+    // 包含仅待渲染元素的props变更 
     if (prevParentElement !== nextParentElement) {
       willReceive = true;
     }
@@ -844,6 +870,7 @@ var ReactCompositeComponent = {
     // An update here will schedule an update but immediately set
     // _pendingStateQueue which will ensure that any state updates gets
     // immediately reconciled instead of waiting for the next batch.
+    // 更新context、或变更带渲染组件元素或其props时willReceive赋值为真，由父组件发起，调用componentWillReceiveProps方法  
     if (willReceive && inst.componentWillReceiveProps) {
       if (__DEV__) {
         measureLifeCyclePerf(
@@ -855,11 +882,14 @@ var ReactCompositeComponent = {
         inst.componentWillReceiveProps(nextProps, nextContext);
       }
     }
-
+    // _processPendingState方法获取组件setState、replaceState方法执行后的最终state  
+    // 将新的state合并到更新队列中，此时nextState为最新的state
     var nextState = this._processPendingState(nextProps, nextContext);
     var shouldUpdate = true;
-
+    // 调用组件的shouldComponentUpdate判断是否需要重绘  
+    // 纯组件不能设置shouldComponentUpdate方法，仅判断props、state是否变更  
     if (!this._pendingForceUpdate) {
+      // 如果shouldComponentUpdate存在则调用
       if (inst.shouldComponentUpdate) {
         if (__DEV__) {
           shouldUpdate = measureLifeCyclePerf(
@@ -878,7 +908,7 @@ var ReactCompositeComponent = {
         }
       }
     }
-
+    // shouldComponentUpdate方法返回undefined，警告 
     if (__DEV__) {
       warning(
         shouldUpdate !== undefined,
@@ -889,9 +919,13 @@ var ReactCompositeComponent = {
     }
 
     this._updateBatchNumber = null;
+    // 重绘组件  
     if (shouldUpdate) {
+      // 重置更新队列
       this._pendingForceUpdate = false;
       // Will set `this.props`, `this.state` and `this.context`.
+      // 执行componentWillUpdate方法，重绘组件实例render方法内待渲染的子组件，挂载componentDidUpdate方法  
+      // 即将更新this.state, this.props 和this.content
       this._performComponentUpdate(
         nextParentElement,
         nextProps,
@@ -901,8 +935,8 @@ var ReactCompositeComponent = {
         nextUnmaskedContext
       );
     } else {
-      // If it's determined that a component should not update, we still want
-      // to set props and state but we shortcut the rest of the update.
+      // 如果确定组件不更新，任然需要设置props和state
+      // 只变更组件的部分属性，不开启重绘功能
       this._currentElement = nextParentElement;
       this._context = nextUnmaskedContext;
       inst.props = nextProps;
@@ -910,11 +944,13 @@ var ReactCompositeComponent = {
       inst.context = nextContext;
     }
   },
-
+  // 获取组件setState、replaceState方法执行后的最终state  
+  // setState、replaceState方法执行后更迭的state以函数或state数据形式推入_pendingStateQueue中  
   _processPendingState: function(props, context) {
     var inst = this._instance;
-    var queue = this._pendingStateQueue;
-    var replace = this._pendingReplaceState;
+    var queue = this._pendingStateQueue; // 组件调用setState、replaceState方法，通过ReactUpdateQueue将更迭后的state推入state数据
+    var replace = this._pendingReplaceState; // 判断组件是否通过replaceState方法向_pendingStateQueue推入数据
+
     this._pendingReplaceState = false;
     this._pendingStateQueue = null;
 
@@ -952,6 +988,8 @@ var ReactCompositeComponent = {
    * @param {?object} unmaskedContext
    * @private
    */
+  // 执行componentWillUpdate方法，重绘组件实例render方法内待渲染的子组件，挂载componentDidUpdate方法  
+  // 当组件确认需要更新时调用
   _performComponentUpdate: function(
     nextElement,
     nextProps,
@@ -961,7 +999,7 @@ var ReactCompositeComponent = {
     unmaskedContext
   ) {
     var inst = this._instance;
-
+    // 如果存在componentDidUpdate,则将当前的props,statem context保存一份
     var hasComponentDidUpdate = Boolean(inst.componentDidUpdate);
     var prevProps;
     var prevState;
@@ -971,7 +1009,7 @@ var ReactCompositeComponent = {
       prevState = inst.state;
       prevContext = inst.context;
     }
-
+    //componentWillUpdate存在则执行componentWillUpdate方法
     if (inst.componentWillUpdate) {
       if (__DEV__) {
         measureLifeCyclePerf(
@@ -986,12 +1024,13 @@ var ReactCompositeComponent = {
 
     this._currentElement = nextElement;
     this._context = unmaskedContext;
+    // 更新this.props, this.state 和this.context
     inst.props = nextProps;
     inst.state = nextState;
     inst.context = nextContext;
-
+  // 以更新子组件的方式或重新创建子组件的方式重调用render渲染组件
     this._updateRenderedComponent(transaction, unmaskedContext);
-
+    // 当组件完成更新后，如果存在componentDidUpdate则调用
     if (hasComponentDidUpdate) {
       if (__DEV__) {
         transaction.getReactMountReady().enqueue(() => {
@@ -1016,16 +1055,21 @@ var ReactCompositeComponent = {
    * @param {ReactReconcileTransaction} transaction
    * @internal
    */
+   // 以更新子组件的方式或重新创建子组件的方式重绘render方法待渲染的子组件  
   _updateRenderedComponent: function(transaction, context) {
-    var prevComponentInstance = this._renderedComponent;
-    var prevRenderedElement = prevComponentInstance._currentElement;
+    var prevComponentInstance = this._renderedComponent;// 组件render待渲染的子组件实例
+    var prevRenderedElement = prevComponentInstance._currentElement;// 子组件元素  
+    // _renderValidatedComponent方法调用组件实例inst的render方法，获取待挂载的元素  
     var nextRenderedElement = this._renderValidatedComponent();
 
     var debugID = 0;
     if (__DEV__) {
       debugID = this._debugID;
     }
-
+    // shouldUpdateReactComponent方法返回真值，更新组件实例；返回否值，销毁实例后、重新创建实例  
+    // 组件元素的构造函数或key值不同，销毁实例后再行创建  
+    
+    //如果需要更新 render方法子组件构造函数及key相同，则通过ReactReconciler.receiveComponent方法更新子组件实例  
     if (shouldUpdateReactComponent(prevRenderedElement, nextRenderedElement)) {
       ReactReconciler.receiveComponent(
         prevComponentInstance,
@@ -1033,18 +1077,21 @@ var ReactCompositeComponent = {
         transaction,
         this._processChildContext(context)
       );
+
     } else {
+      // 如果不需要更新则渲染组件
       var oldHostNode = ReactReconciler.getHostNode(prevComponentInstance);
       ReactReconciler.unmountComponent(prevComponentInstance, false);
 
       var nodeType = ReactNodeTypes.getType(nextRenderedElement);
       this._renderedNodeType = nodeType;
+      // 得到nextRenderedElement对应的component类实例
       var child = this._instantiateReactComponent(
         nextRenderedElement,
         nodeType !== ReactNodeTypes.EMPTY /* shouldHaveDebugID */
       );
       this._renderedComponent = child;
-
+      // 使用render递归渲染
       var nextMarkup = ReactReconciler.mountComponent(
         child,
         transaction,
@@ -1060,7 +1107,7 @@ var ReactCompositeComponent = {
           ReactInstrumentation.debugTool.onSetChildren(debugID, childDebugIDs);
         }
       }
-
+      // 替换文档中挂载的Dom元素DomLazyTree
       this._replaceNodeWithMarkup(
         oldHostNode,
         nextMarkup,
@@ -1074,6 +1121,7 @@ var ReactCompositeComponent = {
    *
    * @protected
    */
+  // 替换文档中挂载的Dom元素DomLazyTree  
   _replaceNodeWithMarkup: function(oldHostNode, nextMarkup, prevInstance) {
     ReactComponentEnvironment.replaceNodeWithMarkup(
       oldHostNode,
@@ -1082,9 +1130,7 @@ var ReactCompositeComponent = {
     );
   },
 
-  /**
-   * @protected
-   */
+  // 调用组件实例inst的render方法，获取待挂载的元素  
   _renderValidatedComponentWithoutOwnerOrContext: function() {
     var inst = this._instance;
     var renderedElement;
@@ -1112,9 +1158,7 @@ var ReactCompositeComponent = {
     return renderedElement;
   },
 
-  /**
-   * @private
-   */
+  // 调用组件实例inst的render方法，获取待挂载的元素  
   _renderValidatedComponent: function() {
     var renderedElement;
     if (__DEV__ || this._compositeType !== CompositeTypes.StatelessFunctional) {
@@ -1129,6 +1173,7 @@ var ReactCompositeComponent = {
       renderedElement =
         this._renderValidatedComponentWithoutOwnerOrContext();
     }
+    // 校验renderedElement是否为ReactElement
     invariant(
       // TODO: An `isValidNode` function would probably be more appropriate
       renderedElement === null || renderedElement === false ||
@@ -1149,10 +1194,13 @@ var ReactCompositeComponent = {
    * @final
    * @private
    */
-  attachRef: function(ref, component) {
+  // 对外提供接口，用于向组件实例ReactComponentInstance添加this.refs属性
+  attachRef: function(ref, component) {// 参数component为子组件  
     var inst = this.getPublicInstance();
+    // 无状态组件没有this.refs属性  
     invariant(inst != null, 'Stateless function components cannot have refs.');
     var publicComponentInstance = component.getPublicInstance();
+     // 无状态子组件也不能作为上层组件的this.refs的值
     if (__DEV__) {
       var componentName = component && component.getName ?
         component.getName() : 'a component';
@@ -1167,6 +1215,7 @@ var ReactCompositeComponent = {
         this.getName()
       );
     }
+    // 通过引用对象的形式赋值inst.refs
     var refs = inst.refs === emptyObject ? (inst.refs = {}) : inst.refs;
     refs[ref] = publicComponentInstance;
   },
@@ -1178,6 +1227,7 @@ var ReactCompositeComponent = {
    * @final
    * @private
    */
+  // 销毁组件实例ReactComponentInstance的refs属性
   detachRef: function(ref) {
     var refs = this.getPublicInstance().refs;
     delete refs[ref];
@@ -1207,6 +1257,7 @@ var ReactCompositeComponent = {
    * @return {ReactComponent} the public component instance.
    * @internal
    */
+  // 获取组件ReactComponent的实例
   getPublicInstance: function() {
     var inst = this._instance;
     if (this._compositeType === CompositeTypes.StatelessFunctional) {
@@ -1216,6 +1267,7 @@ var ReactCompositeComponent = {
   },
 
   // Stub
+  // 调用instantiateReactComponent模块，用于创建子组件
   _instantiateReactComponent: null,
 
 };

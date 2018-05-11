@@ -5,6 +5,6 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import User from './ExampleApplication';
 ReactDOM.render(
-    <User />,
+    <User name={'zhaoyehong'}>hello, yezi</User>,
     document.getElementById('app')
 );

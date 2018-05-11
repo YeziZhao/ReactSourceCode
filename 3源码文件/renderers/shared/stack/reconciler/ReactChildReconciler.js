@@ -1,23 +1,16 @@
-/**
- * Copyright 2014-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule ReactChildReconciler
- */
-
+// ReactChildReconciler模块用于挂载、卸载、或更新ReactDomComponent子组件。
 'use strict';
 
 var ReactReconciler = require('ReactReconciler');
-
+// 用于获取ReactCmpositeComponent组件实例或ReactDomComponent组件实例
 var instantiateReactComponent = require('instantiateReactComponent');
+// react组件的key值转译
 var KeyEscapeUtils = require('KeyEscapeUtils');
+// 由组件的构造函数及key键是否相同，判断是否可以更新组件
 var shouldUpdateReactComponent = require('shouldUpdateReactComponent');
-var traverseAllChildren = require('traverseAllChildren');
 var warning = require('warning');
+// 用于遍历props.children，触发执行instantiateChild函数，以对象形式获取相关ReactDomComponent组件实例  
+var traverseAllChildren = require('traverseAllChildren');
 
 var ReactComponentTreeHook;
 
@@ -33,7 +26,7 @@ if (
   // https://github.com/facebook/react/pull/7178
   ReactComponentTreeHook = require('ReactComponentTreeHook');
 }
-
+// 以集合childInstances获取react组件实例
 function instantiateChild(childInstances, child, name, selfDebugID) {
   // We found a component instance.
   var keyUnique = (childInstances[name] === undefined);
@@ -42,6 +35,7 @@ function instantiateChild(childInstances, child, name, selfDebugID) {
       ReactComponentTreeHook = require('ReactComponentTreeHook');
     }
     if (!keyUnique) {
+      // ReactComponentTreeHook.getStackAddendumByID当key值相同，获取祖先节点的信息，警告用 
       warning(
         false,
         'flattenChildren(...): Encountered two children with the same key, ' +
@@ -53,6 +47,7 @@ function instantiateChild(childInstances, child, name, selfDebugID) {
     }
   }
   if (child != null && keyUnique) {
+    // 获取child对应的react组件实例，表现为ReactCompositeComponent实例或ReactDomComponent实例等  
     childInstances[name] = instantiateReactComponent(child, true);
   }
 }
@@ -62,6 +57,7 @@ function instantiateChild(childInstances, child, name, selfDebugID) {
  * children. Its output is suitable for passing it onto ReactMultiChild which
  * does diffed reordering and insertion.
  */
+// 用于装载/更新/或卸载ReactDomComponent子组件
 var ReactChildReconciler = {
   /**
    * Generates a "mount image" for each of the supplied children. In the case
@@ -71,6 +67,7 @@ var ReactChildReconciler = {
    * @return {?object} A set of child instances.
    * @internal
    */
+  // 获取props.children相关的react组件实例集合
   instantiateChildren: function(
     nestedChildNodes,
     transaction,
@@ -100,11 +97,14 @@ var ReactChildReconciler = {
   },
 
   /**
-   * Updates the rendered children and returns a new set of children.
+   * 通过shouldUpdateReactComponent函数判断是否可以更新ReactDomComponent子组件。如不能卸载组件并装载新的子组件
    *
-   * @param {?object} prevChildren Previously initialized set of children.
-   * @param {?object} nextChildren Flat child element maps.
-   * @param {ReactReconcileTransaction} transaction
+   * @param {?object} prevChildren 先前挂在的子节点，以key键作为标识，用于更新或移除
+   * @param {?object} nextChildren 组件中即将挂在的子节点，以key键作为标识，通preChildren比较后添加或更新
+   * mountImages：更新为组件最终渲染的子节点图谱  
+  * removedNodes：更新为组件待移除的子节点 
+   * @param {ReactReconcileTransaction} transaction： 生命周期管理 
+   * hostParent：父节点信息
    * @param {object} context
    * @return {?object} A new set of child instances.
    * @internal
@@ -130,29 +130,43 @@ var ReactChildReconciler = {
     }
     var name;
     var prevChild;
+    // 遍历需要更新的子节点
     for (name in nextChildren) {
+      // 不是自有属性，跳过
       if (!nextChildren.hasOwnProperty(name)) {
         continue;
       }
+      // 根据当前节点的name，获取之前prevChildren的值
       prevChild = prevChildren && prevChildren[name];
+      // 根据当前节点的name获取之前的_currentElement
       var prevElement = prevChild && prevChild._currentElement;
+      // 获取当前需要更新的element
       var nextElement = nextChildren[name];
+      // 判断是需要更新还是重新挂载
       if (prevChild != null &&
           shouldUpdateReactComponent(prevElement, nextElement)) {
+            // 更新
         ReactReconciler.receiveComponent(
           prevChild, nextElement, transaction, context
         );
+        // nextChildren存放需要更新的node
         nextChildren[name] = prevChild;
       } else {
+        // 重新挂载
         if (prevChild) {
+          // 移除的node放入removedNodes
           removedNodes[name] = ReactReconciler.getHostNode(prevChild);
+          // 卸载
           ReactReconciler.unmountComponent(prevChild, false);
         }
         // The child must be instantiated before it's mounted.
+        // 获取ReactCmpositeComponent组件实例或ReactDomComponent组件实例
         var nextChildInstance = instantiateReactComponent(nextElement, true);
+        // 将卸载的数据存放到nextChildren
         nextChildren[name] = nextChildInstance;
         // Creating mount image now ensures refs are resolved in right order
         // (see https://github.com/facebook/react/pull/7101 for explanation).
+        // 重新挂载的LazyTree
         var nextChildMountImage = ReactReconciler.mountComponent(
           nextChildInstance,
           transaction,
@@ -161,10 +175,12 @@ var ReactChildReconciler = {
           context,
           selfDebugID
         );
+        // mountImages：最后需要挂在到DOM上的真实node节点
         mountImages.push(nextChildMountImage);
       }
     }
     // Unmount children that are no longer present.
+    // 从DOM上卸载掉本次更新不再需要的节点
     for (name in prevChildren) {
       if (prevChildren.hasOwnProperty(name) &&
           !(nextChildren && nextChildren.hasOwnProperty(name))) {
@@ -182,6 +198,7 @@ var ReactChildReconciler = {
    * @param {?object} renderedChildren Previously initialized set of children.
    * @internal
    */
+  // 遍历props.children相关react组件实例，执行unmountComponent方法卸载组件
   unmountChildren: function(renderedChildren, safely) {
     for (var name in renderedChildren) {
       if (renderedChildren.hasOwnProperty(name)) {

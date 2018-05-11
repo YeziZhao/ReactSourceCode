@@ -11,7 +11,7 @@
  */
 
 'use strict';
-
+// invariant(condition,format,a,b,c,d,e,f) condition为否值，替换format中的"%s"，并throw error报错  
 var invariant = require('invariant');
 
 var OBSERVED_ERROR = {};
@@ -77,6 +77,10 @@ var OBSERVED_ERROR = {};
  *
  * @class Transaction
  */
+// 用于某函数method执行前后，添加前置钩子函数initialize和后置钩子函数close.前置钩子函数的意义是为向后置钩子提供参数
+// reinitializeWrapper: 是该实例初始化时执行
+// getTransactionWrappers: 用于添加前、后置钩子。返回是[{initialize:function(){}, close:function(){}}]形式
+// perform(method, arg): 用于触发前置钩子initialize、method(arg), 后置钩子close的顺序执行
 var TransactionImpl = {
   /**
    * Sets up this instance so that it is prepared for collecting metrics. Does
@@ -85,10 +89,11 @@ var TransactionImpl = {
    * That can be useful if you decide to make your subclass of this mixin a
    * "PooledClass".
    */
+  // 初始化事务
   reinitializeTransaction: function(): void {
-    // 将transactionWrappers设置为null
+    // 将前置钩子和后置钩子transactionWrapper添加到this.transactionWrappers中（父Transaction·这个值为空，每个子类里面都有自己的transaxtionWrapper对象）
     this.transactionWrappers = this.getTransactionWrappers();
-    // 清空wrapperInitData
+    // 初始化后置钩子close方法的参数，由前置钩子initialize方法返回值构成  
     if (this.wrapperInitData) {
       this.wrapperInitData.length = 0;
     } else {
@@ -100,33 +105,17 @@ var TransactionImpl = {
   // 是否是正在运行中的事务
   _isInTransaction: false,
 
-  /**
-   * @abstract
-   * @return {Array<TransactionWrapper>} Array of transaction wrappers.
-   */
+  // 用于添加method方法的前置钩子及后置钩子transactionWrapper={initialize:function(){},close:function(){}}  
+  // 前置钩子initialize方法为后置钩子close方法提供参数，且存放于this.wrapperInitData中  
+  // 返回值形如[{initialize:function(){},close:function(){}}]  
   getTransactionWrappers: null,
 
+  // 判断perform方法执行与否，由此断定closeAll方法是外部调用还是内部调用(不允许外部调用)
   isInTransaction: function(): boolean {
     return !!this._isInTransaction;
   },
 
-  /**
-   * Executes the function within a safety window. Use this for the top level
-   * methods that result in large amounts of computation/mutations that would
-   * need to be safety checked. The optional arguments helps prevent the need
-   * to bind in many cases.
-   *
-   * @param {function} method Member of scope to call.
-   * @param {Object} scope Scope to invoke from.
-   * @param {Object?=} a Argument to pass to the method.
-   * @param {Object?=} b Argument to pass to the method.
-   * @param {Object?=} c Argument to pass to the method.
-   * @param {Object?=} d Argument to pass to the method.
-   * @param {Object?=} e Argument to pass to the method.
-   * @param {Object?=} f Argument to pass to the method.
-   *
-   * @return {*} Return value from `method`.
-   */
+  // 外部接口，执行各个钩子initialize放啊，随后执行method方法，最后执行close钩子方法
   perform: function<
     A, B, C, D, E, F, G,
     T: (a: A, b: B, c: C, d: D, e: E, f: F) => G // eslint-disable-line space-before-function-paren
@@ -134,7 +123,7 @@ var TransactionImpl = {
     method: T, scope: any,
     a: A, b: B, c: C, d: D, e: E, f: F,
   ): G {
-    // !!this.isInTransaction() 判断当前事务是否正在执行
+    !!this.isInTransaction() // 判断当前事务是否正在执行。实例的perform方法单次只能执行一个 
     invariant(
       !this.isInTransaction(),
       'Transaction.perform(...): Cannot initialize a transaction when there ' +
@@ -182,7 +171,7 @@ var TransactionImpl = {
     }
     return ret;
   },
-
+  // 内部调用，在method函数执行前，调用前置钩子transactionWrapper中的initialize方法  
   initializeAll: function(startIndex: number): void {
     // 获取自身的transactionWrappers
     var transactionWrappers = this.transactionWrappers;
@@ -190,10 +179,6 @@ var TransactionImpl = {
     for (var i = startIndex; i < transactionWrappers.length; i++) {
       var wrapper = transactionWrappers[i];
       try {
-        // Catching errors makes debugging more difficult, so we start with the
-        // OBSERVED_ERROR state before overwriting it with the real return value
-        // of initialize -- if it's still set to OBSERVED_ERROR in the finally
-        // block, it means wrapper.initialize threw.
         // 先使用一个空对象设置到this.wrapperInitData[i]
         this.wrapperInitData[i] = OBSERVED_ERROR;
         // 从wrapper中获取是否有值，有则返回调用结果
@@ -203,9 +188,6 @@ var TransactionImpl = {
       } finally {
         // 如果wrapper.initialize李没有值，则继续调用下一个wrapper
         if (this.wrapperInitData[i] === OBSERVED_ERROR) {
-          // The initializer for wrapper i threw an error; initialize the
-          // remaining wrappers but silence any exceptions from them to ensure
-          // that the first error is the one to bubble up.
           try {
             this.initializeAll(i + 1);
           } catch (err) {
@@ -215,12 +197,7 @@ var TransactionImpl = {
     }
   },
 
-  /**
-   * Invokes each of `this.transactionWrappers.close[i]` functions, passing into
-   * them the respective return values of `this.transactionWrappers.init[i]`
-   * (`close`rs that correspond to initializers that failed will not be
-   * invoked).
-   */
+// 内部调用，在method函数执行后，调用后置钩子transactionWrapper中的initialize方法  
   closeAll: function(startIndex: number): void {
     invariant(
       this.isInTransaction(),
@@ -230,14 +207,10 @@ var TransactionImpl = {
     for (var i = startIndex; i < transactionWrappers.length; i++) {
       // 获取当前的wrapper
       var wrapper = transactionWrappers[i];
-      // 获取调用wrapper.initialize的存储的返回值
+      // 前置钩子返回值 
       var initData = this.wrapperInitData[i];
       var errorThrown;
       try {
-        // Catching errors makes debugging more difficult, so we start with
-        // errorThrown set to true before setting it to false after calling
-        // close -- if it's still set to true in the finally block, it means
-        // wrapper.close threw.
         // 先假设异常
         errorThrown = true;
         // 调用wrapper的close方法，并将initData传入
@@ -249,9 +222,6 @@ var TransactionImpl = {
       } finally {
         // 如果失败，需要将游标向前加1，继续后续wrapper的调用
         if (errorThrown) {
-          // The closer for wrapper i threw an error; close the remaining
-          // wrappers but silence any exceptions from them to ensure that the
-          // first error is the one to bubble up.
           try {
             this.closeAll(i + 1);
           } catch (e) {
@@ -259,6 +229,7 @@ var TransactionImpl = {
         }
       }
     }
+    // 清空提供给后置钩子close方法的参数
     this.wrapperInitData.length = 0;
   },
 };

@@ -1,21 +1,17 @@
-/**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule ReactBrowserEventEmitter
- */
+// ReactBrowserEventEmitter模块区别EventPulginHub模块，后者用于缓存或获取组件实例的绑定函数，
+// 前者为节点绑定切实的回调函数，该回调函数执行过程中构建合成事件对象，获取组件实例的绑定回调并执行，若有state变更，则重绘组件。
 
 'use strict';
-
+// 获取事件插件模块中各事件的依赖
 var EventPluginRegistry = require('EventPluginRegistry');
+// 为ReactBrowserEventEmitter.ReactEventListener提供_handleTopLevel方法  
+// 该方法用于构建合成事件对象及执行该对象的绑定回调  
 var ReactEventEmitterMixin = require('ReactEventEmitterMixin');
+// scroll 或resize事件发生时缓存滚动偏移量
 var ViewportMetrics = require('ViewportMetrics');
-
+// 获取当前浏览器支持的animationend、animationiteration、animationstart、transitionend事件名
 var getVendorPrefixedEventName = require('getVendorPrefixedEventName');
+// 判断是否支持某事件 
 var isEventSupported = require('isEventSupported');
 
 /**
@@ -81,6 +77,7 @@ var reactTopListenersCounter = 0;
 // For events like 'submit' which don't consistently bubble (which we trap at a
 // lower node than `document`), binding at `document` would cause duplicate
 // events so we don't include them here
+// 普通事件名到top事件名的映射
 var topEventMapping = {
   topAbort: 'abort',
   topAnimationEnd: getVendorPrefixedEventName('animationend') || 'animationend',
@@ -151,8 +148,9 @@ var topEventMapping = {
 /**
  * To ensure no conflicts with other potential React instances on the page
  */
+// 缓存document绑定事件记录不与其他fragment下的document节点绑定事件数据起冲突  
 var topListenersIDKey = '_reactListenersID' + String(Math.random()).slice(2);
-
+// document节点mountAt已经绑定事件，不必再次绑定 
 function getListeningForDocument(mountAt) {
   // In IE8, `mountAt` is a host object and doesn't have `hasOwnProperty`
   // directly.
@@ -173,21 +171,27 @@ function getListeningForDocument(mountAt) {
  *
  * @internal
  */
+// 调用ReactBroserEventEmitter.ReactEventListener方法以react方式监听节点事件
+// 绑定ReactEventListener.dispatchEvent派发事件方法，回调中构建合成事件对象并执行合成事件对的象绑定回调  
+// listenTo方法为document节点绑定事件，使事件向fragment上层组件传播 
 var ReactBrowserEventEmitter = Object.assign({}, ReactEventEmitterMixin, {
 
   /**
    * Injectable event backend
    */
   ReactEventListener: null,
-
+  // 通过ReactDefaultInjection模块赋值为ReactEventListener模块  
+  // 并向ReactEventListener模块添加_handleTopLevel=ReactEventEmitterMixin.handleTopLevel  
   injection: {
     /**
      * @param {object} ReactEventListener
      */
     injectReactEventListener: function(ReactEventListener) {
+      // ReactBrowserEventEmitter._handleTopLevel通过浅拷贝，赋值为ReactEventEmitterMixin.handleTopLevel 
       ReactEventListener.setHandleTopLevel(
         ReactBrowserEventEmitter.handleTopLevel
       );
+      // 通过ReactDefaultInjection模块赋值为ReactEventListener模块  
       ReactBrowserEventEmitter.ReactEventListener = ReactEventListener;
     },
   },
@@ -197,6 +201,7 @@ var ReactBrowserEventEmitter = Object.assign({}, ReactEventEmitterMixin, {
    *
    * @param {boolean} enabled True if callbacks should be enabled.
    */
+  // 是否允许派发react事件，即在组件重绘后调用合成事件对象的绑定回调函数  
   setEnabled: function(enabled) {
     if (ReactBrowserEventEmitter.ReactEventListener) {
       ReactBrowserEventEmitter.ReactEventListener.setEnabled(enabled);
@@ -206,6 +211,7 @@ var ReactBrowserEventEmitter = Object.assign({}, ReactEventEmitterMixin, {
   /**
    * @return {boolean} True if callbacks are enabled.
    */
+  // 判断是否允许派发react事件
   isEnabled: function() {
     return !!(
       ReactBrowserEventEmitter.ReactEventListener &&
@@ -231,12 +237,17 @@ var ReactBrowserEventEmitter = Object.assign({}, ReactEventEmitterMixin, {
    * Also, `keyup`/`keypress`/`keydown` do not bubble to the window on IE, but
    * they bubble to document.
    *
-   * @param {string} registrationName Name of listener (e.g. `onClick`).
-   * @param {object} contentDocumentHandle Document which owns the container
+   * @param {string} registrationName Name of listener (e.g. `onClick`).需要绑定的事件名称
+   * @param {object} contentDocumentHandle Document which owns the container： 需要绑定事件的位置(只要document上存在的事件，则传入对象时document)
    */
+  // firefox、safari、ie兼容性问题，或者不触发document节点的冒泡事件，或者可以冒泡到document上，却不能冒泡到window对象  
+  // document节点由react机制创建，作为fragment下的节点，需要绑定事件，实现事件向fragment上层组件传播  
+  // 参数registrationName为普通事件名如"click"，contentDocumentHandle为document节点
   listenTo: function(registrationName, contentDocumentHandle) {
     var mountAt = contentDocumentHandle;
+    // 获取fragment下document节点已绑定事件的记录  
     var isListening = getListeningForDocument(mountAt);
+    // 获取事件插件中各事件的依赖，如topClick等 
     var dependencies =
       EventPluginRegistry.registrationNameDependencies[registrationName];
 
@@ -313,6 +324,7 @@ var ReactBrowserEventEmitter = Object.assign({}, ReactEventEmitterMixin, {
           }
 
           // to make sure blur and focus event listeners are only attached once
+          // 保证只为document节点绑定一次focus、blur事件  
           isListening.topBlur = true;
           isListening.topFocus = true;
         } else if (topEventMapping.hasOwnProperty(dependency)) {
@@ -327,7 +339,8 @@ var ReactBrowserEventEmitter = Object.assign({}, ReactEventEmitterMixin, {
       }
     }
   },
-
+  // 冒泡方式绑定事件，回调设为ReactEventListener.dispatchEvent，构建合成事件对象并执行该对象的回调  
+  // 参数topLevelType如topClick，handlerBaseName如click，handle为绑定事件的节点  
   trapBubbledEvent: function(topLevelType, handlerBaseName, handle) {
     return ReactBrowserEventEmitter.ReactEventListener.trapBubbledEvent(
       topLevelType,
@@ -335,7 +348,7 @@ var ReactBrowserEventEmitter = Object.assign({}, ReactEventEmitterMixin, {
       handle
     );
   },
-
+  // 捕获方式绑定事件，回调设为ReactEventListener.dispatchEvent，构建合成事件对象并执行该对象的回调  
   trapCapturedEvent: function(topLevelType, handlerBaseName, handle) {
     return ReactBrowserEventEmitter.ReactEventListener.trapCapturedEvent(
       topLevelType,
@@ -349,6 +362,7 @@ var ReactBrowserEventEmitter = Object.assign({}, ReactEventEmitterMixin, {
    * Some popup blocker extensions appear to do this:
    * https://github.com/facebook/react/issues/6887
    */
+  // 判断浏览器是否支持event.pageX|pageY属性
   supportsEventPageXY: function() {
     if (!document.createEvent) {
       return false;
@@ -368,6 +382,7 @@ var ReactBrowserEventEmitter = Object.assign({}, ReactEventEmitterMixin, {
    *
    * @see http://www.quirksmode.org/dom/events/scroll.html
    */
+  // 浏览器不支持event.pageX|pageY属性时，scroll或resize事件触发时将滚动偏移量赋值给ViewportMetrics  
   ensureScrollValueMonitoring: function() {
     if (hasEventPageXY === undefined) {
       hasEventPageXY = ReactBrowserEventEmitter.supportsEventPageXY();

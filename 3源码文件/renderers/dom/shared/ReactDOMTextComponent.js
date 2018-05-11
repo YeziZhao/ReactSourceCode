@@ -34,15 +34,18 @@ var validateDOMNesting = require('validateDOMNesting');
  * @extends ReactComponent
  * @internal
  */
+// 创建文本组件，这是ReactText，并不是ReactElement
 var ReactDOMTextComponent = function(text) {
   // TODO: This is really a ReactText (ReactNode), not a ReactElement
+  // 保存当前的字符串
   this._currentElement = text;
   this._stringText = '' + text;
   // ReactDOMComponentTree uses these:
+  // ReactDOMComponentTree需要使用的参数
   this._hostNode = null;
   this._hostParent = null;
 
-  // Properties
+  // Properties属性
   this._domID = 0;
   this._mountIndex = 0;
   this._closingComment = null;
@@ -82,34 +85,41 @@ Object.assign(ReactDOMTextComponent.prototype, {
     var domID = hostContainerInfo._idCounter++;
     var openingValue = ' react-text: ' + domID + ' ';
     var closingValue = ' /react-text ';
+    // domID是表示能够参与diff的比较的重要标识
     this._domID = domID;
     this._hostParent = hostParent;
+    // 判断节点是否是createElemnet方式创建的。则为该文本带上标签和domID。可以参与后面的diff
     if (transaction.useCreateElement) {
       var ownerDocument = hostContainerInfo._ownerDocument;
       var openingComment = ownerDocument.createComment(openingValue);
       var closingComment = ownerDocument.createComment(closingValue);
       var lazyTree = DOMLazyTree(ownerDocument.createDocumentFragment());
+      // 开始标签
       DOMLazyTree.queueChild(lazyTree, DOMLazyTree(openingComment));
+      // 如果是文本类型，则常见文本节点
       if (this._stringText) {
         DOMLazyTree.queueChild(
           lazyTree,
           DOMLazyTree(ownerDocument.createTextNode(this._stringText))
         );
       }
+      // 结束标签
       DOMLazyTree.queueChild(lazyTree, DOMLazyTree(closingComment));
       ReactDOMComponentTree.precacheNode(this, openingComment);
       this._closingComment = closingComment;
       return lazyTree;
+
+    // 如果不是则直接返回文本
     } else {
       var escapedText = escapeTextContentForBrowser(this._stringText);
-
+      // 静态页面下直接返回文本
       if (transaction.renderToStaticMarkup) {
         // Normally we'd wrap this between comment nodes for the reasons stated
         // above, but since this is a situation where React won't take over
         // (static pages), we can simply return the text as it is.
         return escapedText;
       }
-
+      // 如果不是通过createElemnet创建的文本，则将标签和属性注释掉，直接返回文本内容
       return (
         '<!--' + openingValue + '-->' + escapedText +
         '<!--' + closingValue + '-->'
@@ -124,6 +134,7 @@ Object.assign(ReactDOMTextComponent.prototype, {
    * @param {ReactReconcileTransaction} transaction
    * @internal
    */
+  // 更新文本内容
   receiveComponent: function(nextText, transaction) {
     if (nextText !== this._currentElement) {
       this._currentElement = nextText;

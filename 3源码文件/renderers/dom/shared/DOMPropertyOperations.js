@@ -21,7 +21,9 @@ var warning = require('warning');
 var VALID_ATTRIBUTE_NAME_REGEX = new RegExp(
   '^[' + DOMProperty.ATTRIBUTE_NAME_START_CHAR + '][' + DOMProperty.ATTRIBUTE_NAME_CHAR + ']*$'
 );
+// 缓存校验失败的属性名  
 var illegalAttributeNameCache = {};
+// 缓存校验成功的属性名 
 var validatedAttributeNameCache = {};
 
 function isAttributeNameSafe(attributeName) {
@@ -130,6 +132,10 @@ var DOMPropertyOperations = {
    * @param {string} name
    * @param {*} value
    */
+  // 设置节点属性，最常使用setAttribute或setAttributeNS方法  
+  // 特别当propertyInfo.mutationMethod存在时，使用该方法设置节点属性  
+  // 或propertyInfo.mustUseProperty为真值时，使用node[propertyInfo.propertyName]=value设置节点属性  
+  // 或通过DOMProperty.isCustomAttribute校验的属性，根据value值移除或添加节点属性  
   setValueForProperty: function(node, name, value) {
     var propertyInfo = DOMProperty.properties.hasOwnProperty(name) ?
         DOMProperty.properties[name] : null;

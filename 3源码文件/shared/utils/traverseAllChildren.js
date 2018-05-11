@@ -1,22 +1,16 @@
-/**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule traverseAllChildren
- */
-
+// 提供给ReactChilren模块使用，用于遍历ReactNode形式的集合props.children获取其他props属性
 'use strict';
-
+// 容器组件，用户自定义组件的ReactCompositeComponent实例化、render过程中，给ReactCurrentOwner.owner赋值  
 var ReactCurrentOwner = require('ReactCurrentOwner');
+// 判断是否ReactElement
 var REACT_ELEMENT_TYPE = require('ReactElementSymbol');
 
 var getIteratorFn = require('getIteratorFn');
+// invariant(condition,format,a,b,c,d,e,f) condition为否值，替换format中的"%s"，并throw error报错   
 var invariant = require('invariant');
+// 用于React元素的key属性转化  
 var KeyEscapeUtils = require('KeyEscapeUtils');
+// warning(condition,format) condition为否值，替换format中的"%s"，并console.error警告  
 var warning = require('warning');
 
 var SEPARATOR = '.';
@@ -47,6 +41,7 @@ function getComponentKey(component, index) {
   // that we don't block potential future ES APIs.
   if (component && typeof component === 'object' && component.key != null) {
     // Explicit key
+    // 正则替换"="或":"为"=0"、"=2"
     return KeyEscapeUtils.escape(component.key);
   }
   // Implicit key determined by the index in the set
@@ -61,6 +56,10 @@ function getComponentKey(component, index) {
  * process.
  * @return {!number} The number of children in this subtree.
  */
+// callback: 作为回调函数的首参
+// traverseContext作为引用传递输出的最终结果result，用于将子元素扁平化。
+// 当props.children为单节点形式时，对该节点执行callback回调，间接执行traverseContext.func函数  
+// 当props.children为嵌套节点形式时，递归调用traverseAllChildrenImpl遍历子孙节点，通过callback回调执行traverseContext.func函数  
 function traverseAllChildrenImpl(
   children,
   nameSoFar,
@@ -73,7 +72,7 @@ function traverseAllChildrenImpl(
     // All of the above are perceived as null.
     children = null;
   }
-
+  // 作为单一节点ReactNode处理，通过回调callback间接执行traverseContext.func函数或塞入traverseContext中  
   if (children === null ||
       type === 'string' ||
       type === 'number' ||
@@ -92,9 +91,10 @@ function traverseAllChildrenImpl(
 
   var child;
   var nextName;
-  var subtreeCount = 0; // Count of children found in the current subtree.
+  var subtreeCount = 0; // // 统计props.children中含有的节点个数  
   var nextNamePrefix = nameSoFar === '' ? SEPARATOR : nameSoFar + SUBSEPARATOR;
-
+  // props.children成数组形式，遍历子孙节点执行callback回调  
+  // 通过回调callback间接执行traverseContext.func函数或塞入traverseContext中  
   if (Array.isArray(children)) {
     for (var i = 0; i < children.length; i++) {
       child = children[i];
@@ -106,6 +106,8 @@ function traverseAllChildrenImpl(
         traverseContext
       );
     }
+  // props.children为迭代器，遍历子孙节点执行callback回调  
+  // 通过回调callback间接执行traverseContext.func函数或塞入traverseContext中
   } else {
     var iteratorFn = getIteratorFn(children);
     if (iteratorFn) {
@@ -160,6 +162,7 @@ function traverseAllChildrenImpl(
           }
         }
       }
+      // 不能接受的对象格式数据，输出相应的错误
     } else if (type === 'object') {
       var addendum = '';
       if (__DEV__) {
@@ -210,6 +213,8 @@ function traverseAllChildrenImpl(
  * @param {?*} traverseContext Context for traversal.
  * @return {!number} The number of children in this subtree.
  */
+// 用于遍历props.children或其他props属性(传递ReactNode)，执行callback回调函数  
+// callback执行过程调用traverseContext.func对child进行处理，或者将child塞入traverseContext中
 function traverseAllChildren(children, callback, traverseContext) {
   if (children == null) {
     return 0;
@@ -217,5 +222,8 @@ function traverseAllChildren(children, callback, traverseContext) {
 
   return traverseAllChildrenImpl(children, '', callback, traverseContext);
 }
-
+// traverseAllChildren(children,function(traverseContext,child,name){}, traverseContext){}函数的第三个参数将作为回调函数的首参  
+// react包下ReactChildren模块中，traverseContext存储遍历的执行函数，用于执行traverseContext.func方法  
+// react包下flattenChildren模块中，traverseContext作为引用传递输出的最终结果result，用于将子元素扁平化  
+// react包下ReactChildReconciler模块中，traverseContext获取props.children相关react组件实例的集合
 module.exports = traverseAllChildren;

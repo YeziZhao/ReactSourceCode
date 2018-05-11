@@ -10,18 +10,21 @@
  */
 
 'use strict';
-
+// 用于更新或挂在用户自定义组件的协调器
 var ReactCompositeComponent = require('ReactCompositeComponent');
+// 用于创建空组件
 var ReactEmptyComponent = require('ReactEmptyComponent');
+// 用于创建React封装DOM标签组件/或文本组件
 var ReactHostComponent = require('ReactHostComponent');
 
 var getNextDebugID = require('getNextDebugID');
+// invariant(condition,format,a,b,c,d,e,f) condition为否值，替换format中的"%s"，并throw error报错  
 var invariant = require('invariant');
+// warning(condition,format) condition为否值，替换format中的"%s"，并console.error警告
 var warning = require('warning');
 
-// To avoid a cyclic dependency, we create the final class in this module
+// 继承ReactCompositeComponent,并将instantiateReactComonent赋值给原型方法，避免循环因爱。用于挂载用户自定义组件创建的元素
 var ReactCompositeComponentWrapper = function(element) {
-
   // 调用ReactCompositeComponent上的construct
   this.construct(element);
 };
@@ -32,7 +35,7 @@ Object.assign(
     _instantiateReactComponent: instantiateReactComponent,
   }
 );
-
+// 适用于提示require加载的文件没有export 
 function getDeclarationErrorAddendum(owner) {
   if (owner) {
     var name = owner.getName();
@@ -43,13 +46,7 @@ function getDeclarationErrorAddendum(owner) {
   return '';
 }
 
-/**
- * Check if the type reference is a known internal type. I.e. not a user
- * provided composite type.
- *
- * @param {function} type
- * @return {boolean} Returns true if this is a valid internal type.
- */
+// 内部组件书写形式，包含mountComponent/receiveComponent.用于挂载组件。用于自定义的组件包含render方法，指示待绘制的ReactNode包含哪些元素，挂载mountComponent却通过内部组件实现
 function isInternalComponentType(type) {
   return (
     typeof type === 'function' &&
@@ -59,25 +56,19 @@ function isInternalComponentType(type) {
   );
 }
 
-/**
- * Given a ReactNode, create an instance that will actually be mounted.
- *
- * @param {ReactNode} node
- * @param {boolean} shouldHaveDebugID
- * @return {object} A new instance of the element's constructor.
- * @protected
- */
+// 参数node是ReactNode（ReactElement || ReactFragment || ReactText）,其中ReactElement又可以分为ReactComponentElement|| ReactDOMElement
 function instantiateReactComponent(node, shouldHaveDebugID) {
   var instance;
 
-  // 当node为空时，说明node不存在，则初始化空组件
+  // 空组件，由ReactEmptyComponent默认调用ReactDOMEmptyComponent创建  
   if (node === null || node === false) {
     instance = ReactEmptyComponent.create(instantiateReactComponent);
 
-  // 当node类型为对象，即使DOM标签组件或者自定义组件
+  // 当node==object，则将node封装为标签组件或者自定义组件处理
   } else if (typeof node === 'object') {
     var element = node;
     var type = element.type;
+    // type类型错误报错，提示require加载的文件没有export  
     if (
       typeof type !== 'function' &&
       typeof type !== 'string'
@@ -105,24 +96,19 @@ function instantiateReactComponent(node, shouldHaveDebugID) {
       );
     }
 
-    // Special case string values
     // // 当node节点的type是string,则初始化DOM标签组件
     if (typeof element.type === 'string') {
       // DOM标签（ReactDOMComponent）
       instance = ReactHostComponent.createInternalComponent(element);
+      // 如果时React内部组件(实现了mountComponent等方法)不能使用字符串引用的暂时替代方案
     } else if (isInternalComponentType(element.type)) {
-      // This is temporarily available for custom components that are not string
-      // representations. I.e. ART. Once those are updated to use the string
-      // representation, we can drop this code path.
-       // 不是字符串表示的自定义组件暂无法使用，此处将不做组件初始化操作
       instance = new element.type(element);
-
-      // We renamed this. Allow the old name for compat. :(
+      // 维持旧有api的有效性 
       if (!instance.getHostNode) {
         instance.getHostNode = instance.getNativeNode;
       }
 
-    // 自定义组件（ReactCompositeComponent）
+    // 自定义组件，创建原型几成ReactCompositeComponent类的ReactCompositeComponentWrapper实例
     } else {
       instance = new ReactCompositeComponentWrapper(element);
     }
@@ -152,6 +138,7 @@ function instantiateReactComponent(node, shouldHaveDebugID) {
   // These two fields are used by the DOM and ART diffing algorithms
   // respectively. Instead of using expandos on components, we should be
   // storing the state needed by the diffing algorithms elsewhere.
+  // 初始化参数
   instance._mountIndex = 0;
   instance._mountImage = null;
 
@@ -162,6 +149,7 @@ function instantiateReactComponent(node, shouldHaveDebugID) {
   // Internal instances should fully constructed at this point, so they should
   // not get any new fields added to them at this point.
   if (__DEV__) {
+    // Object.preventExtensions使对象属性不可扩展，但可修改  
     if (Object.preventExtensions) {
       Object.preventExtensions(instance);
     }

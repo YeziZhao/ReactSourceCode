@@ -645,7 +645,9 @@ var ReactMount = {
     );
 
     if (shouldReuseMarkup) {
+      // 根结点
       var rootElement = getReactRootElementInContainer(container);
+      // 标记是否相同
       if (ReactMarkupChecksum.canReuseMarkup(markup, rootElement)) {
         ReactDOMComponentTree.precacheNode(instance, rootElement);
         return;

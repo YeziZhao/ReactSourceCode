@@ -1,37 +1,28 @@
-/**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
- *
- * @providesModule ReactReconcileTransaction
- */
-
+// ReactReconcileTransaction模块用于在组件元素挂在前后执行指定的构造函数，特别是componentDidMount,componentDIdUpdate生命周期调用方法。
+// 其次是向组件注入updater参数，实现setState,replcaceState、forceUpdate方法
 'use strict';
-
+// 回调函数队列，经过PooledClass工厂化，使用getPooled方法创建实例，release方法销毁实例数据，即回调函数及其上下文
 var CallbackQueue = require('CallbackQueue');
+// pooledClass.addPoolingTo(copyContructor)：用于创建构造函数copyContructor转化为工厂函数
+// 用于管理实例数据的创建和销毁，并将销毁的实例添加到实例池CopyContructor.instancePool中
 var PooledClass = require('PooledClass');
+// ReactBorserEventEmitter模块的isEnabled,setEnabled方法默认使用ReactEventListenter模块的同名方法
 var ReactBrowserEventEmitter = require('ReactBrowserEventEmitter');
+// 输入框、文本框、contentEditable节点选中文案相关操作 
 var ReactInputSelection = require('ReactInputSelection');
 var ReactInstrumentation = require('ReactInstrumentation');
+// 当前对象会继承Transaction的某构造函数的实例，将拥有perform(method, args)方法
+// 实现功能为：method函数执行前后，调用成对的前置钩子initialize，后置钩子函数close.initialize为close提供参数
 var Transaction = require('Transaction');
+// 作为组件构造函数ReactComponent的第三个参数updater传入
+// 组件内的setState/replaceState,forceUpdate方法都通过ReactUpdateQueue的响应方法实现
 var ReactUpdateQueue = require('ReactUpdateQueue');
 
-
-/**
- * Ensures that, when possible, the selection range (currently selected text
- * input) is not disturbed by performing the transaction.
- */
+// 缓存选中文案的数据后，再行选中文案
 var SELECTION_RESTORATION = {
-  /**
-   * @return {Selection} Selection information.
-   */
+  // 获取选中节点及文案的信息
   initialize: ReactInputSelection.getSelectionInformation,
-  /**
-   * @param {Selection} sel Selection information returned from `initialize`.
-   */
+  // 以initialize选中文案的信息选中相关节点及文案 
   close: ReactInputSelection.restoreSelection,
 };
 
@@ -40,6 +31,7 @@ var SELECTION_RESTORATION = {
  * high level DOM manipulations (like temporarily removing a text input from the
  * DOM).
  */
+// 组件绘制过程中截断事件派发，ReactBrowserEventEmitter.ReactEventListener._enabled置否实现 
 var EVENT_SUPPRESSION = {
   /**
    * @return {boolean} The enabled status of `ReactBrowserEventEmitter` before
@@ -61,10 +53,10 @@ var EVENT_SUPPRESSION = {
   },
 };
 
-/**
- * Provides a queue for collecting `componentDidMount` and
- * `componentDidUpdate` callbacks during the transaction.
- */
+// 通过CallbackQueue回调函数队列机制，即this.reactMountReady  
+// 执行this.reactMountReady.enqueue(fn)注入componentDidMount、componentDidUpdate方法  
+// 通过Transaction添加前、后置钩子机制  
+// 前置钩子initialize方法用于清空回调队列；close用于触发回调函数componentDidMount、componentDidUpdate执行  
 var ON_DOM_READY_QUEUEING = {
   /**
    * Initializes the internal `onDOMReady` queue.
@@ -114,69 +106,66 @@ if (__DEV__) {
  * @class ReactReconcileTransaction
  */
 function ReactReconcileTransaction(useCreateElement: boolean) {
+  // 调用事务初始化函数，设置transactionWrapper, 初始化wrapperInitData=[]，是close的参数。并将_isInTransaction设置为false（事务进行中标识）
   this.reinitializeTransaction();
-  // Only server-side rendering really needs this option (see
-  // `ReactServerRendering`), but server-side uses
-  // `ReactServerRenderingTransaction` instead. This option is here so that it's
-  // accessible and defaults to false when `ReactDOMComponent` and
-  // `ReactDOMTextComponent` checks it in `mountComponent`.`
+  // 浏览器端渲染使用，虽然浏览器端渲染使用ReactServerRenderingTransaction  
+  // 客户端渲染设置此值为否，是ReactDOMComponent、ReactDOMTextComponent模块执行mountComponent的需要  
   this.renderToStaticMarkup = false;
+  // 用于挂载回调函数，如componentDidMount、componentDidUpdate等 ,通过Transcation机制，作为后置钩子执行 
   this.reactMountReady = CallbackQueue.getPooled(null);
+  // 参数useCreateElement决定创建dom节点的时候是使用document.createElement方法，还是拼接字符串
   this.useCreateElement = useCreateElement;
 }
 
 var Mixin = {
-  /**
-   * @see Transaction
-   * @abstract
-   * @final
-   * @return {array<object>} List of operation wrap procedures.
-   *   TODO: convert to array<TransactionWrapper>
-   */
+ // 通过Transaction模块设定前置及后置钩子，[{initialize,close}]形式  
   getTransactionWrappers: function() {
     return TRANSACTION_WRAPPERS;
   },
 
-  /**
-   * @return {object} The queue to collect `onDOMReady` callbacks with.
-   */
+  // 获取this.reactMountReady，用于添加回调函数如getReactMountReady().enqueue(fn)。添加声明周期处理函数 
   getReactMountReady: function() {
     return this.reactMountReady;
   },
 
-  /**
-   * @return {object} The queue to collect React async events.
-   */
+   // 作为组件构造函数ReactComponent的第三个参数updater传入  
+  // 组件内的setState、replaceState、forceUpdate方法都通过调用ReactUpdateQueue的相应方法实现
   getUpdateQueue: function() {
     return ReactUpdateQueue;
   },
 
-  /**
-   * Save current transaction state -- if the return value from this method is
-   * passed to `rollback`, the transaction will be reset to that state.
-   */
+  // 获取this.reactMountReady中添加的回调函数componentDidMount、componentDidUpdate的个数
   checkpoint: function() {
-    // reactMountReady is the our only stateful wrapper
+    // 获取回调函数队列中的回调函数个数
     return this.reactMountReady.checkpoint();
   },
-
+  // 将this.reactMountReady中添加的回调函数个数设为checkpoint 
   rollback: function(checkpoint) {
+     // 将回调函数队列中的回调函数个数设定为参数checkpoint
     this.reactMountReady.rollback(checkpoint);
   },
 
-  /**
-   * `PooledClass` looks for this, and will invoke this before allowing this
-   * instance to be reused.
-   */
+  // 清空this.reactMountReady中的回调函数componentDidMount、componentDidUpdate，再销毁this.reactMountReady  
   destructor: function() {
     CallbackQueue.release(this.reactMountReady);
     this.reactMountReady = null;
   },
 };
 
-
+// reinitializeTransaction方法，用于重置钩子函数  
+// getTransactionWrappers方法，用于添加钩子函数，[{initialize,close}]形式  
+// perform(method)执行前后钩子函数、及method函数  
+// method函数为ReactMount模块中的mountComponentIntoNode函数  
 Object.assign(ReactReconcileTransaction.prototype, Transaction, Mixin);
-
+// 通过PooledClass模块管理实例的创建ReactReconcileTransaction.getPooled  
+// 及实例数据的销毁ReactReconcileTransaction.release 
 PooledClass.addPoolingTo(ReactReconcileTransaction);
-
+// 通过ReactUpdates模块输出接口: ReactUpdates.ReactReconcileTransaction  
+// 实现功能为在mountComponentIntoNode函数调用指定的钩子函数，包括用户配置的componentDidMount、componentDidUpdate回调  
+// 使用方式为getPooled方法创建实例，release方法销毁实例数据  
+// perform方法执行mountComponentIntoNode函数，及前后钩子函数  
+// getReactMountReady().enqueue(fn):添加用户配置的componentDidMount、componentDidUpdate回调  
+// getReactMountReady().checkpoint():方法获取回调个数  
+// getReactMountReady().rollback(checkpoint): 将回调个数设为checkpoint  
+// 另一实现功能为向组件实例注入updater参数，将向setState、replaceState、forceUpdate方法提供函数功能  
 module.exports = ReactReconcileTransaction;
