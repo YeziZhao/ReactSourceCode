@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 const propTypes = {
     text: PropTypes.string
 };
-function Button({ addField, text }) {
-    return (
-        <button>{text}</button>
-    );
+
+class Button extends Component {
+    constructor(props) {
+        super(props);
+    }
+    render() {
+        return <button>{this.props.text}</button>
+    }
 }
-Button.propTypes = propTypes;
 export default Button;

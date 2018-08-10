@@ -15,27 +15,29 @@ class User extends Component {
         };
     }
     addField() {
+        console.log('-----------------------------I an checking -------------hjhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh')
         this.setState({
-            showText: !this.state.showText
-        }, () => {
-            console.log("this.state.showText", this.state.showText);
+            showText: false
+        }, function() {
+            console.log(1)
         });
     }
-    handleClick() {
-
+    capture() {
+        console.log('--------------------------this.capture.bind(this) called')
     }
     render() {
         let { name, children } = this.props;
         let { show, text } = this.state;
+        let styleObj ={
+            display: this.state.showText ? true: false
+        };
         return (
-            <div>
-                <button onClick={this.addField.bind(this)}>CLICK</button>
-            {
-                this.state.showText ?
-                    <Button text={'button text'}/>: 
-                    <Child text={'child text'}/>
-            }
-        </div>
+            <React.Fragment>
+                <button onClick={this.addField.bind(this)} onClickCapture={this.capture.bind(this)}>CLICK</button>
+                <button style={styleObj} onClick={this.addField.bind(this)} onClickCapture={this.capture.bind(this)}>CLICK</button>
+                <button style={styleObj} onClick={this.addField.bind(this)} onClickCapture={this.capture.bind(this)}>CLICK</button>
+          </React.Fragment>
+            
         );
     }
 }
