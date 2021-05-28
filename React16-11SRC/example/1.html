@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Hello React!</title>
+<script src="https://cdn.staticfile.org/react/16.4.0/umd/react.development.js"></script>
+<script src="https://cdn.staticfile.org/react-dom/16.4.0/umd/react-dom.development.js"></script>
+<script src="https://cdn.staticfile.org/babel-standalone/6.26.0/babel.min.js"></script>
+</head>
+<body>
+ 
+<div id="root">hello,你说呢</div>
+<script type="text/babel">
+function App() {
+    return(
+        <div className="Wrapper">
+            <h1 className="title">React header</h1>
+            <div className="parent">
+                <span>child1</span>
+                <p>child2</p>
+                <button>child3</button>
+            </div>
+        </div>
+    );
+}
+ReactDOM.render(
+    <App/>,
+    document.getElementById('root')
+);
+</script>
+ 
+</body>
+</html>

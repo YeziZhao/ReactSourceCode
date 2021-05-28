@@ -3,8 +3,19 @@
 import 'babel-polyfill';
 import React from 'react';
 import ReactDOM from 'react-dom';
-import User from './ExampleApplication';
+import FragmentComponent from './FragmentExample';
+import TypeComponent from './renderType';
+import ProtalExample from './protalExample';
+import RefComponent from './refExample';
+import ContextExample from './contextExample';
+
 ReactDOM.render(
-    <User name={'zhaoyehong'}>hello, yezi</User>,
+    <FragmentComponent name={'zhaoyehong'}>hello, yezi</FragmentComponent>,
+    // <TypeComponent/>,
+    // <ProtalExample>
+    //     <FragmentComponent name={'zhaoyehong'}>hello, yezi</FragmentComponent>
+    // </ProtalExample> , 
+    // <RefComponent/>,
+    // <ContextExample/>,
     document.getElementById('app')
 );
